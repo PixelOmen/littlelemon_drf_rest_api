@@ -1,0 +1,29 @@
+SuperUser:
+
+username = admin
+email = admin@admin.com
+password = pass123pass123
+
+Manager:
+
+username = Manager1
+password = pass123pass123
+First Name: Manager1_First
+Last Name: Manager1_Last
+email = Manager1@managers.com
+
+Customer:
+
+username = Customer1
+password = pass123pass123
+First Name: Customer1_First
+Last Name: Customer1_Last
+email = Customer1@customers.com
+
+Delivery crew:
+
+username = Delivery1
+password = pass123pass123
+First Name: Delivery1_First
+Last Name: Delivery1_Last
+email = Delivery1@deliverycrew.com
