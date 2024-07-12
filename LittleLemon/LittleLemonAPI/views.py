@@ -1,3 +1,5 @@
+import datetime
+
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.core.exceptions import ObjectDoesNotExist
@@ -20,9 +22,10 @@ from .serializers import (
     MenuItemSerializer,
     CategorySerializer,
     UserSerializer,
-    CartSerializer
+    CartSerializer,
+    OrderSerializer
 )
-from .models import MenuItem, Category, Cart
+from .models import MenuItem, Category, CartItem, Order, OrderItem
 from .permissions import IsManager, IsDeliveryCrew
 
 # -------------- Cart  -----------------
@@ -31,21 +34,24 @@ class CartAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cart_items = Cart.objects.filter(user=request.user.id)
+        cart_items = CartItem.objects.filter(user=request.user.id)
         serialized_data = CartSerializer(cart_items, many=True).data
         return Response(serialized_data)
     
     def delete(self, request):
-        cart_items = Cart.objects.filter(user=request.user.id)
+        cart_items = CartItem.objects.filter(user=request.user.id)
         cart_items.delete()
         return Response({"details": "ok"})
 
     def post(self, request):
         data = request.data.copy()
 
-        menuitem_id = data['menuitem']
+        menuitem_id = data.get('menuitem')
         if not menuitem_id:
-            return Response({"details": "Bad Request"}, status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"details": "MenuItem ID field required (menuitem)"},
+                status.HTTP_400_BAD_REQUEST
+            )
 
         if not data.get("quantity"):
             data["quantity"] = 1
@@ -53,29 +59,80 @@ class CartAPIView(APIView):
             quantity = int(data["quantity"])
         except Exception as e:
             return Response({"details": f"{type(e).__name__}:{e}"}, status.HTTP_400_BAD_REQUEST)
+        if quantity < 1:
+            return Response({"details": "Quantity must be at least 1"}, status.HTTP_400_BAD_REQUEST)
         
         try:
-            cart_item = Cart.objects.get(menuitem=menuitem_id, user=request.user.id)
+            cart_item = CartItem.objects.get(menuitem=menuitem_id, user=request.user.id)
         except ObjectDoesNotExist:
-            menuitem = get_object_or_404(MenuItem, pk=menuitem_id)
+            get_object_or_404(MenuItem, pk=menuitem_id)
+            data['user_id'] = request.user.id
             data['menuitem_id'] = menuitem_id
-            data['unit_price'] = menuitem.price
-            data['user'] = request.user.id
-            data['price'] = menuitem.price * quantity
+            data['quantity'] = quantity
             cart_serializer = CartSerializer(data=data)
             if cart_serializer.is_valid():
-                data = cart_serializer.validated_data
                 cart_serializer.save()
+            else:
+                return Response(cart_serializer.errors, status.HTTP_400_BAD_REQUEST)
         else:
             cart_item.quantity += quantity
             cart_item.price = cart_item.quantity * cart_item.unit_price
             cart_item.save()
 
-
         return Response({"details": "ok"})
             
 
+# -------------- Orders  -----------------
+# ----------------------------------------
+class OrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if IsManager().has_permission(request):
+            orders = Order.objects.all()
+        else:
+            orders = Order.objects.filter(user=request.user.id)
+        serialized_data = OrderSerializer(orders, many=True).data
+        return Response(serialized_data)
+
+    def post(self, request):
+        cart_items = CartItem.objects.filter(user=request.user.id)
+        if not cart_items:
+            return Response({"details": "No items in cart!"}, status.HTTP_400_BAD_REQUEST)
         
+        data = {'user_id': request.user.id, 'date': datetime.date.today()}
+        context = {'cart_items': cart_items}
+        order_serializer = OrderSerializer(data=data, context=context)
+        if order_serializer.is_valid():
+            new_order = order_serializer.save()
+        else:
+            return Response(order_serializer.errors, status.HTTP_400_BAD_REQUEST)
+        
+        for c_item in cart_items:
+            OrderItem.objects.create(
+                order=new_order,
+                menuitem=MenuItem.objects.get(pk=c_item.menuitem.id), #type:ignore
+                quantity=c_item.quantity,
+                unit_price=c_item.unit_price,
+                price=c_item.price
+            )
+            
+        cart_items.delete()
+        return Response({"details": "ok"})
+    
+    def delete(self, request, pk=None):
+        if not IsManager().has_permission(request):
+            return Response({'details': "Not Authorized"}, status.HTTP_403_FORBIDDEN)
+        
+        if pk is None:
+            return Response(
+                {'details': "Order ID must be specified in endpoint /orders/<int:orderid>"},
+                status.HTTP_400_BAD_REQUEST
+            )
+        
+        order = Order.objects.filter(id=pk)
+        order.delete()
+        return Response({"details": "ok"}) 
 
 
 
@@ -107,11 +164,11 @@ class CategoryRUDView(ManagerOnlyRUDView):
     serializer_class = CategorySerializer
 
 
-class MenuItemsListCreateView(ManagerOnlyListCreateView):
+class MenuItemListCreateView(ManagerOnlyListCreateView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
     
-class MenuItemsRUDView(ManagerOnlyRUDView):
+class MenuItemRUDView(ManagerOnlyRUDView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
 
