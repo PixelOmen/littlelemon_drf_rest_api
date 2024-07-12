@@ -41,7 +41,7 @@ class CartAPIView(APIView):
     def delete(self, request):
         cart_items = CartItem.objects.filter(user=request.user.id)
         cart_items.delete()
-        return Response({"details": "ok"})
+        return Response({"details": "ok"}, status.HTTP_204_NO_CONTENT)
 
     def post(self, request):
         data = request.data.copy()
@@ -74,12 +74,13 @@ class CartAPIView(APIView):
                 cart_serializer.save()
             else:
                 return Response(cart_serializer.errors, status.HTTP_400_BAD_REQUEST)
-        else:
-            cart_item.quantity += quantity
-            cart_item.price = cart_item.quantity * cart_item.unit_price
-            cart_item.save()
+            return Response({"details": "ok"}, status.HTTP_201_CREATED)
+        
+        cart_item.quantity += quantity
+        cart_item.price = cart_item.quantity * cart_item.unit_price
+        cart_item.save()
+        return Response({"details": "ok"}, status.HTTP_202_ACCEPTED)
 
-        return Response({"details": "ok"})
             
 
 # -------------- Orders  -----------------
@@ -87,13 +88,82 @@ class CartAPIView(APIView):
 class OrderView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        if IsManager().has_permission(request):
-            orders = Order.objects.all()
+
+
+    def get(self, request, pk=None):
+        is_manager = IsManager().has_permission(request)
+
+        if pk is None:
+            if is_manager:
+                orders = Order.objects.all()
+            elif IsDeliveryCrew().has_permission(request):
+                orders = Order.objects.filter(delivery_crew=request.user.id)
+            else:
+                orders = Order.objects.filter(user=request.user.id)
+            serialized_data = OrderSerializer(orders, many=True).data
+            return Response(serialized_data)
+        
+        order = get_object_or_404(Order, id=pk)        
+        if not is_manager and order.user.id != request.user.id: #type:ignore
+            return Response({'details': "Not Authorized"}, status.HTTP_403_FORBIDDEN)
+        return Response(OrderSerializer(order).data)
+    
+
+
+    def put(self, request, pk=None):
+        return self.patch(request, pk)
+
+    def patch(self, request, pk=None):
+        if pk is None:
+            return Response(
+                {'details': "PUT/PATCH order requires ID in endpoint: /orders/<int:orderid>"},
+                status.HTTP_400_BAD_REQUEST
+            )
+        
+        is_manager = IsManager().has_permission(request)
+        is_delivery_crew = IsDeliveryCrew().has_permission(request)
+
+        if not (is_manager or is_delivery_crew):
+            return Response({'details': "Not Authorized"}, status.HTTP_403_FORBIDDEN)
+
+        order = get_object_or_404(Order, id=pk)
+        if is_manager:
+            return self.manager_patch(request, order)
         else:
-            orders = Order.objects.filter(user=request.user.id)
-        serialized_data = OrderSerializer(orders, many=True).data
-        return Response(serialized_data)
+            return self.delivery_crew_patch(request, order)
+        
+    def manager_patch(self, request, order):
+        serializer = OrderSerializer(order, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            delivery_crew_user = serializer.validated_data.get("delivery_crew") #type:ignore
+            if delivery_crew_user:
+                user = get_object_or_404(User, id=delivery_crew_user.id)
+                user_is_delivery = user.groups.filter(name="Delivery crew").exists()
+                if not user_is_delivery:
+                    errmsg = f'User ID <{delivery_crew_user.id}> is not part of the Delivery crew' #type:ignore
+                    return Response({'details': errmsg}, status.HTTP_400_BAD_REQUEST)
+            serializer.save()
+            return Response({"details": "ok"})
+
+        return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+    def delivery_crew_patch(self, request, order):
+        data_copy= request.data.copy()
+        order_status = {'status': data_copy.pop('status', "")}
+        if not order.delivery_crew or order.delivery_crew.id != request.user.id:
+            return Response({'details': "Not Authorized"}, status.HTTP_403_FORBIDDEN)
+        if len(data_copy) > 0:
+            errmsg = "Delivery Crew can only modify status"
+            return Response({'details': errmsg}, status.HTTP_403_FORBIDDEN)
+        serializer = OrderSerializer(order, data=order_status, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"details": "ok"})
+        else:
+            return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
+
+
 
     def post(self, request):
         cart_items = CartItem.objects.filter(user=request.user.id)
@@ -118,21 +188,23 @@ class OrderView(APIView):
             )
             
         cart_items.delete()
-        return Response({"details": "ok"})
-    
+        return Response({"details": "ok"}, status.HTTP_201_CREATED)
+
+
+
     def delete(self, request, pk=None):
         if not IsManager().has_permission(request):
             return Response({'details': "Not Authorized"}, status.HTTP_403_FORBIDDEN)
         
         if pk is None:
             return Response(
-                {'details': "Order ID must be specified in endpoint /orders/<int:orderid>"},
+                {'details': "DELETE order requires ID in endpoint: /orders/<int:orderid>"},
                 status.HTTP_400_BAD_REQUEST
             )
         
         order = Order.objects.filter(id=pk)
         order.delete()
-        return Response({"details": "ok"}) 
+        return Response({"details": "ok"}, status.HTTP_204_NO_CONTENT) 
 
 
 

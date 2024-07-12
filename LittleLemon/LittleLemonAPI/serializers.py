@@ -73,7 +73,7 @@ class OrderSerializer(serializers.ModelSerializer):
     delivery_crew = UserSerializer(read_only=True)
     delivery_crew_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), write_only=True,
-        source='delivery_crew', required=False
+        source='delivery_crew', required=False, allow_null=True
     )
     orderitems = serializers.SerializerMethodField(read_only=True)
 
