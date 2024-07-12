@@ -4,13 +4,13 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.core.exceptions import ObjectDoesNotExist
 
-from rest_framework.generics import (
-    ListCreateAPIView,
-    RetrieveUpdateDestroyAPIView,
-)
 from rest_framework.authentication import (
     TokenAuthentication,
     SessionAuthentication
+)
+from rest_framework.generics import (
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
 )
 from rest_framework import status
 from rest_framework.views import APIView
@@ -239,6 +239,8 @@ class CategoryRUDView(ManagerOnlyRUDView):
 class MenuItemListCreateView(ManagerOnlyListCreateView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    ordering_fields = ['price']
+    search_fields = ['category__slug', 'category__slug']
     
 class MenuItemRUDView(ManagerOnlyRUDView):
     queryset = MenuItem.objects.all()

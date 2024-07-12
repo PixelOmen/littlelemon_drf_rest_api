@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('categories', views.CategoryListCreateView.as_view()),
+    path('categories/<int:pk>', views.CategoryRUDView.as_view()),
     path('menu-items', views.MenuItemListCreateView.as_view()),
     path('menu-items/<int:pk>', views.MenuItemRUDView.as_view()),
 
