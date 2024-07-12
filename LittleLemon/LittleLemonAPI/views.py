@@ -4,10 +4,6 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.core.exceptions import ObjectDoesNotExist
 
-from rest_framework.authentication import (
-    TokenAuthentication,
-    SessionAuthentication
-)
 from rest_framework.generics import (
     ListCreateAPIView,
     RetrieveUpdateDestroyAPIView,
@@ -15,8 +11,9 @@ from rest_framework.generics import (
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 
 from .serializers import (
     MenuItemSerializer,
@@ -32,6 +29,7 @@ from .permissions import IsManager, IsDeliveryCrew
 # --------------------------------------
 class CartAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
     def get(self, request):
         cart_items = CartItem.objects.filter(user=request.user.id)
@@ -87,6 +85,7 @@ class CartAPIView(APIView):
 # ----------------------------------------
 class OrderView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
 
@@ -230,21 +229,25 @@ class ManagerOnlyRUDView(RetrieveUpdateDestroyAPIView):
 class CategoryListCreateView(ManagerOnlyListCreateView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 class CategoryRUDView(ManagerOnlyRUDView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
 class MenuItemListCreateView(ManagerOnlyListCreateView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     ordering_fields = ['price']
     search_fields = ['category__slug', 'category__slug']
     
 class MenuItemRUDView(ManagerOnlyRUDView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
 
@@ -254,6 +257,7 @@ class MenuItemRUDView(ManagerOnlyRUDView):
 # -------------------------------------
 @api_view(['GET', 'POST'])
 @permission_classes([IsManager])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def list_create_managers(request):
     manager_group = Group.objects.get(name="Manager")
 
@@ -273,6 +277,7 @@ def list_create_managers(request):
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsManager])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def list_create_delivery_crew(request):
     manager_group = Group.objects.get(name="Delivery crew")
 
@@ -292,6 +297,7 @@ def list_create_delivery_crew(request):
 
 @api_view(['DELETE'])
 @permission_classes([IsManager])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def remove_manager(request, pk):
     user = get_object_or_404(User, id=pk)    
     manager_group = Group.objects.get(name="Manager")
@@ -300,6 +306,7 @@ def remove_manager(request, pk):
 
 @api_view(['DELETE'])
 @permission_classes([IsManager])
+@throttle_classes([AnonRateThrottle, UserRateThrottle])
 def remove_delivery_crew(request, pk):
     user = get_object_or_404(User, id=pk)
     deliver_crew_group = Group.objects.get(name="Delivery crew")
