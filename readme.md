@@ -1,7 +1,7 @@
 # LittleLemon REST API
 
 ## What is it?
-This is the peer-reviewed REST API project required for the Meta Back-End Developer Professional Certification. Implements proper token authentication, user group permissions, filtering, pagination, and throttling. Made with Django and The Django REST Framework (DRF).
+This is the peer-reviewed REST API project required for the Meta Back-End Developer Professional Certification. Implements proper token authentication, user group permissions, filtering, pagination, and throttling. Made with Django and Django REST Framework (DRF).
 
 ## Scope
 A fully functioning API project that allows client application developers to develop web and mobile applications through an API. People with different roles will be able to browse, add and edit menu items, place orders, browse orders, assign delivery crew to orders and finally deliver the orders.
